@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Interactive Image Viewer</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: 'Poppins', sans-serif;
+      background: #f9f9f9;
+      color: #333;
+    }
+    header {
+      background: #fff;
+      border-bottom: 1px solid #ddd;
+      padding: 12px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+    header h2 {
+      margin: 0;
+    }
+    .tabs button, .back-button {
+      margin-left: 8px;
+      background: #1b5e20;
+      color: white;
+      border: none;
+      padding: 6px 14px;
+      border-radius: 5px;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+    .tabs button:hover, .back-button:hover {
+      background: #388e3c;
+    }
+    .dashboard {
+      display: flex;
+    }
+    .sidebar {
+      width: 220px;
+      padding: 20px;
+      border-right: 1px solid #ddd;
+      display: none;
+    }
+    .sidebar.visible {
+      display: block;
+    }
+    .filter-card {
+      background: #fff;
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    .filter-card h3 {
+      margin-top: 0;
+      font-size: 18px;
+      color: #1976d2;
+      margin-bottom: 10px;
+    }
+    .filter-group {
+      margin-bottom: 15px;
+    }
+    .filter-group label {
+      font-weight: 500;
+      display: block;
+      margin-bottom: 5px;
+    }
+    .filter-group select {
+      width: 100%;
+      padding: 8px;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+    }
+    .main-content {
+      flex: 1;
+      padding: 20px;
+    }
+    #wrapper {
+      position: relative;
+      width: fit-content;
+      margin: auto;
+    }
+    #wrapper img {
+      display: block;
+      max-width: 100%;
+    }
+    .dot {
+      position: absolute;
+      width: 10px;
+      height: 10px;
+      background: #ba965e;
+      border-radius: 50%;
+      animation: pulse 1s infinite;
+      transform: translate(-50%, -50%);
+      cursor: pointer;
+    }
+    @keyframes pulse {
+      0% { transform: translate(-50%, -50%) scale(1); }
+      50% { transform: translate(-50%, -50%) scale(1.4); opacity: 0.7; }
+      100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+    }
+    #fileModal {
+      position: fixed;
+      top: 10%;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #fff;
+      padding: 20px;
+      border: 2px solid #1b5e20;
+      display: none;
+      z-index: 1100;
+      max-width: 90vw;
+      max-height: 90vh;
+      overflow: auto;
+    }
+    #fileModal img {
+      max-width: 100%;
+      max-height: 70vh;
+    }
+    #fileModal .close {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: #1b5e20;
+      color: white;
+      border: none;
+      border-radius: 50%;
+      width: 30px;
+      height: 30px;
+      font-size: 18px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+<header>
+  <h2>Interactive Image Viewer</h2>
+  <div class="tabs">
+    <button onclick="loadLayer('layer1')">Layer 1</button>
+    <button onclick="loadLayer('layer2')">Layer 2</button>
+    <button onclick="loadLayer('layer3')">Layer 3</button>
+  </div>
+</header>
+<div class="dashboard">
+  <div class="sidebar" id="filterSidebar">
+    <div class="filter-card">
+      <h3>Filter Shapes</h3>
+      <div class="filter-group">
+        <label>Type</label>
+        <select id="typeFilter" onchange="applyFilters()">
+          <option value="">All</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <label>Group</label>
+        <select id="groupFilter" onchange="applyFilters()">
+          <option value="">All</option>
+        </select>
+      </div>
+    </div>
+  </div>
+  <div class="main-content">
+    <button class="back-button" style="display:none;" onclick="goBackToMain()">&larr; Back</button>
+    <div id="wrapper"><img id="viewerImage" src="placeholder.jpg" alt="Base image"></div>
+  </div>
+</div>
+
+<div id="fileModal">
+  <button class="close" onclick="closeModal()">&times;</button>
+  <h3 id="modalTitle"></h3>
+  <div id="fileContent"></div>
+</div>
+
+<script>
+const apiKey = 'YOUR_API_KEY';
+const sheetId = 'YOUR_SHEET_ID';
+const sheetURL = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Sheet1?key=${apiKey}`;
+
+let shapeStatus = {}, shapeType = {}, shapeLayer = {}, allShapes = [], typeSet = new Set(), groupSet = new Set();
+
+fetch(sheetURL)
+  .then(res => res.json())
+  .then(data => {
+    const rows = data.values;
+    for (let i = 1; i < rows.length; i++) {
+      const [id, status, , type, group] = rows[i];
+      if (!id) continue;
+      const shapeId = id.trim().toUpperCase();
+      shapeStatus[shapeId] = (status || '').toLowerCase();
+      shapeType[shapeId] = type || '';
+      shapeLayer[shapeId] = (group || '').toLowerCase();
+      allShapes.push(shapeId);
+      if (type) typeSet.add(type);
+      if (group) groupSet.add(group);
+    }
+    typeSet.forEach(t => {
+      const opt = document.createElement('option');
+      opt.value = t;
+      opt.textContent = t;
+      document.getElementById('typeFilter').appendChild(opt);
+    });
+    groupSet.forEach(g => {
+      const opt = document.createElement('option');
+      opt.value = g;
+      opt.textContent = g;
+      document.getElementById('groupFilter').appendChild(opt);
+    });
+  });
+
+function loadLayer(layer) {
+  const existingScript = document.querySelector('script[data-layer]');
+  if (existingScript) existingScript.remove();
+  const script = document.createElement('script');
+  script.src = `${layer}.js`;
+  script.setAttribute('data-layer', layer);
+  script.onload = () => initViewer(window.shapeData);
+  document.body.appendChild(script);
+  document.querySelector('.back-button').style.display = 'inline-block';
+  document.getElementById('filterSidebar').classList.add('visible');
+}
+
+function goBackToMain() {
+  document.getElementById("wrapper").innerHTML = '<img id="viewerImage" src="placeholder.jpg" alt="Base image">';
+  document.querySelector(".back-button").style.display = 'none';
+  document.getElementById('filterSidebar').classList.remove('visible');
+}
+
+function applyFilters() {
+  const layer = document.querySelector('script[data-layer]')?.getAttribute('data-layer');
+  if (layer) loadLayer(layer);
+}
+
+function initViewer(data) {
+  const wrapper = document.getElementById("wrapper");
+  wrapper.innerHTML = `<img id="viewerImage" src="${data.image}" alt="Base image">`;
+  const viewerImage = document.getElementById("viewerImage");
+  viewerImage.onload = () => {
+    const layer = document.querySelector('script[data-layer]')?.getAttribute('data-layer');
+    const typeVal = document.getElementById('typeFilter').value;
+    const groupVal = document.getElementById('groupFilter').value;
+    const filteredShapes = data.shapes.filter(s => {
+      const id = s.id.toUpperCase();
+      return shapeLayer[id] === layer &&
+             shapeStatus[id] === 'active' &&
+             (!typeVal || shapeType[id] === typeVal) &&
+             (!groupVal || groupVal === shapeLayer[id]);
+    });
+
+    filteredShapes.forEach(shape => {
+      let sumX = 0, sumY = 0;
+      shape.polygon.forEach(pt => {
+        sumX += pt.x;
+        sumY += pt.y;
+      });
+      const cx = sumX / shape.polygon.length;
+      const cy = sumY / shape.polygon.length;
+      const dot = document.createElement("div");
+      dot.className = "dot";
+      dot.style.left = `${cx * 100}%`;
+      dot.style.top = `${cy * 100}%`;
+      dot.title = shape.id;
+      dot.onclick = () => showFile(shape);
+      wrapper.appendChild(dot);
+    });
+  };
+}
+
+function showFile(shape) {
+  const fileContent = document.getElementById('fileContent');
+  fileContent.innerHTML = '';
+  document.getElementById('modalTitle').innerText = shape.id;
+  for (let src of Object.values(shape.files)) {
+    if (src) {
+      const img = document.createElement('img');
+      img.src = src;
+      fileContent.appendChild(img);
+      document.getElementById('fileModal').style.display = 'block';
+      break;
+    }
+  }
+}
+
+function closeModal() {
+  document.getElementById('fileModal').style.display = 'none';
+}
+</script>
+</body>
+</html>
