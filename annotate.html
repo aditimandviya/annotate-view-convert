@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Image Annotator with Polygon & File Upload</title>
+  <style>
+    body { font-family: Arial; background: #f0f0f0; text-align: center; padding: 20px; }
+    canvas { border: 2px solid #874545; display: block; margin: 20px auto; }
+    .controls button {
+      margin: 5px;
+      padding: 8px 12px;
+      background: #874545;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+    #fileUploadModal {
+      display: none;
+      position: fixed;
+      top: 20%; left: 50%;
+      transform: translateX(-50%);
+      background: white;
+      padding: 20px;
+      border: 2px solid #874545;
+      z-index: 999;
+    }
+  </style>
+</head>
+<body>
+
+<h2>Draw Polygons on Image & Upload Linked Files</h2>
+<input type="file" accept="image/*" onchange="loadImage(event)" />
+<div class="controls">
+  <button onclick="clearCurrent()">Clear Current</button>
+  <button onclick="saveCurrent()">Save Shape</button>
+  <button onclick="download()">Download Project</button>
+</div>
+
+<canvas id="canvas" width="1000" height="700"></canvas>
+
+<!-- File Upload Modal -->
+<div id="fileUploadModal">
+  <h3>Upload File for <span id="shapeNameDisplay"></span></h3>
+  <div id="fileInputs">
+    <label>Upload File: </label>
+    <input type="file" id="linkedFile" />
+  </div>
+  <br>
+  <button onclick="finishUpload()">Finish Upload</button>
+</div>
+
+<script>
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const image = new Image();
+let imageSrc = "";
+let drawing = [];
+let shapes = [];
+let currentShapeName = "";
+
+function loadImage(e) {
+  const reader = new FileReader();
+  reader.onload = function (event) {
+    imageSrc = event.target.result;
+    image.onload = () => ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+    image.src = imageSrc;
+  };
+  reader.readAsDataURL(e.target.files[0]);
+}
+
+canvas.addEventListener('click', e => {
+  const rect = canvas.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+  drawing.push([x, y]);
+  redraw();
+});
+
+function redraw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+  if (drawing.length > 1) {
+    ctx.beginPath();
+    drawing.forEach(([x, y], i) => {
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    });
+    ctx.closePath();
+    ctx.strokeStyle = "#ff0000";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
+  drawing.forEach(([x, y]) => {
+    ctx.beginPath();
+    ctx.arc(x, y, 4, 0, 2 * Math.PI);
+    ctx.fillStyle = "blue";
+    ctx.fill();
+  });
+}
+
+function clearCurrent() {
+  drawing = [];
+  redraw();
+}
+
+function saveCurrent() {
+  if (drawing.length < 3) return alert("Draw at least 3 points.");
+  const shapeName = prompt("Enter Shape ID or Name:");
+  if (!shapeName) return;
+
+  currentShapeName = shapeName.trim();
+  document.getElementById("shapeNameDisplay").innerText = currentShapeName;
+
+  document.getElementById("linkedFile").value = "";
+  document.getElementById("fileUploadModal").style.display = "block";
+}
+
+function finishUpload() {
+  const input = document.getElementById("linkedFile");
+  const file = input.files[0];
+  if (!file) return alert("Please upload a file.");
+
+  const reader = new FileReader();
+  reader.onload = function (e) {
+    const shapeData = {
+      id: currentShapeName,
+      polygon: drawing.map(([x, y]) => ({
+        x: +(x / canvas.width).toFixed(4),
+        y: +(y / canvas.height).toFixed(4)
+      })),
+      file: e.target.result
+    };
+
+    shapes.push(shapeData);
+    drawing = [];
+    redraw();
+    document.getElementById("fileUploadModal").style.display = "none";
+  };
+  reader.readAsDataURL(file);
+}
+
+function download() {
+  const json = JSON.stringify({ image: imageSrc, shapes }, null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = "project-data.json";
+  a.click();
+}
+</script>
+</body>
+</html>
