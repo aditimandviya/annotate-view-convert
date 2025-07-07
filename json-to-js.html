@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Convert JSON to JS</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 30px;
+    }
+    input[type="file"] {
+      margin: 10px 0;
+    }
+    button {
+      background: #4CAF50;
+      color: white;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #45a049;
+    }
+  </style>
+</head>
+<body>
+  <h2>Convert JSON File to JavaScript File</h2>
+  <input type="file" id="jsonFile" accept=".json">
+  <br>
+  <label>Variable name (e.g., <b>myData</b>):</label>
+  <input type="text" id="varName" placeholder="myData" value="myData">
+  <br><br>
+  <button onclick="convertToJS()">Download JS File</button>
+
+  <script>
+    function convertToJS() {
+      const fileInput = document.getElementById('jsonFile');
+      const varName = document.getElementById('varName').value.trim();
+
+      if (!fileInput.files.length || !varName) {
+        alert('Please select a JSON file and enter a variable name.');
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          const json = JSON.parse(e.target.result);
+          const jsContent = `window.${varName} = ${JSON.stringify(json, null, 2)};`;
+
+          const blob = new Blob([jsContent], { type: 'application/javascript' });
+          const link = document.createElement('a');
+          link.href = URL.createObjectURL(blob);
+          link.download = varName + '.js';
+          link.click();
+        } catch (err) {
+          alert('Invalid JSON file.');
+        }
+      };
+      reader.readAsText(fileInput.files[0]);
+    }
+  </script>
+</body>
+</html>
